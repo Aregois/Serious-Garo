@@ -11,10 +11,11 @@
     canvas.width = Math.floor(innerWidth * dpr);
     canvas.height = Math.floor(innerHeight * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (!input.locked) {
+      input.screenAimX = innerWidth / 2;
+      input.screenAimY = innerHeight / 2;
+    }
   }
-  addEventListener("resize", resize);
-  resize();
-
   // ---------- UI Elements ----------
   const ui = {
     startScreen: document.getElementById("centerMsg"),
@@ -51,7 +52,6 @@
   // ---------- Sound System (Web Audio API) ----------
   const AudioSys = (() => {
     let ac = null;
-    let windNode = null;
 
     function ensure() {
       if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
@@ -116,46 +116,16 @@
       node.o.stop(ac.currentTime + 0.12);
     }
 
-    function windStart() {
-      ensure();
-      if (windNode) return;
-      // White noise buffer loop + lowpass filter.
-      const dur = 1.2;
-      const buf = ac.createBuffer(1, ac.sampleRate * dur, ac.sampleRate);
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
-
-      const src = ac.createBufferSource();
-      src.buffer = buf;
-      src.loop = true;
-
-      const filt = ac.createBiquadFilter();
-      filt.type = "lowpass"; filt.frequency.value = 600;
-
-      const g = ac.createGain();
-      g.gain.value = 0.03;
-
-      src.connect(filt).connect(g).connect(ac.destination);
-      src.start();
-      windNode = { src, filt, g };
-    }
-    function windStop() {
-      if (!windNode || !ac) return;
-      windNode.g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.3);
-      windNode.src.stop(ac.currentTime + 0.35);
-      windNode = null;
-    }
-
     return {
       ensure, pistol, shotgun, minigunShot, enemyDeath, playerHit,
-      screamLoopStart, screamLoopStop, windStart, windStop
+      screamLoopStart, screamLoopStop
     };
   })();
 
   // ---------- Input ----------
   const input = {
     keys: new Set(),
-    mouseX: 0, mouseY: 0,
+    screenAimX: 0, screenAimY: 0,
     aimAngle: 0,
     firing: false,
     locked: false
@@ -164,16 +134,21 @@
   addEventListener("keydown", (e) => input.keys.add(e.code));
   addEventListener("keyup", (e) => input.keys.delete(e.code));
 
-  canvas.addEventListener("mousemove", (e) => {
-    if (document.pointerLockElement === canvas) {
-      input.mouseX += e.movementX;
-      input.mouseY += e.movementY;
-    } else {
-      const r = canvas.getBoundingClientRect();
-      input.mouseX = e.clientX - r.left;
-      input.mouseY = e.clientY - r.top;
-    }
-  });
+  function updateAimFromLockedMovement(e) {
+    if (!input.locked) return;
+    input.screenAimX += e.movementX;
+    input.screenAimY += e.movementY;
+  }
+
+  function updateAimFromCanvasMove(e) {
+    if (input.locked || e.target !== canvas) return;
+    const r = canvas.getBoundingClientRect();
+    input.screenAimX = e.clientX - r.left;
+    input.screenAimY = e.clientY - r.top;
+  }
+
+  document.addEventListener("mousemove", updateAimFromLockedMovement);
+  canvas.addEventListener("mousemove", updateAimFromCanvasMove);
 
   canvas.addEventListener("mousedown", (e) => {
     if (e.button === 0) input.firing = true;
@@ -184,13 +159,21 @@
 
   document.addEventListener("pointerlockchange", () => {
     input.locked = (document.pointerLockElement === canvas);
-    // Recenter deltas so aiming always starts from the current view direction
-    // once the pointer is locked.
+    const cssW = canvas.width / (window.devicePixelRatio || 1);
+    const cssH = canvas.height / (window.devicePixelRatio || 1);
     if (input.locked) {
-      input.mouseX = 0;
-      input.mouseY = 0;
+      // Start from the current facing direction when locking.
+      input.screenAimX = cssW / 2;
+      input.screenAimY = cssH / 2;
+    } else {
+      // Clamp screen-space aim so it stays inside the canvas when unlocked.
+      input.screenAimX = clamp(input.screenAimX, 0, cssW);
+      input.screenAimY = clamp(input.screenAimY, 0, cssH);
     }
   });
+
+  addEventListener("resize", resize);
+  resize();
 
   // ---------- World / Camera ----------
   const world = {
@@ -244,10 +227,12 @@
       this.y = clamp(this.y, this.r, world.h - this.r);
 
       // Aim angle relative to screen center
-      const cx = canvas.width / (window.devicePixelRatio || 1) / 2;
-      const cy = canvas.height / (window.devicePixelRatio || 1) / 2;
-      const mx = input.locked ? cx + input.mouseX : input.mouseX;
-      const my = input.locked ? cy + input.mouseY : input.mouseY;
+      const cssW = canvas.width / (window.devicePixelRatio || 1);
+      const cssH = canvas.height / (window.devicePixelRatio || 1);
+      const cx = cssW / 2;
+      const cy = cssH / 2;
+      const mx = clamp(input.screenAimX, 0, cssW);
+      const my = clamp(input.screenAimY, 0, cssH);
       this.aimX = mx; this.aimY = my;
       input.aimAngle = Math.atan2(my - cy, mx - cx);
 
@@ -272,7 +257,6 @@
         this.hp = 0;
         this.alive = false;
         game.state = "gameover";
-        AudioSys.windStop();
         ui.gameOver.style.display = "grid";
       }
     }
@@ -711,7 +695,6 @@
         if (this.nextWaveIn <= 0) {
           if (this.wave > this.maxWaves) {
             game.state = "victory";
-            AudioSys.windStop();
             ui.victory.style.display = "grid";
             return;
           }
@@ -786,7 +769,6 @@
     ui.gameOver.style.display = "none";
     ui.victory.style.display = "none";
     ui.startScreen.style.display = "none";
-    AudioSys.windStart();
   }
 
   // ---------- Damage overlay ----------
