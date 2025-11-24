@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Desert Arena FPS (Serious Sam-inspired)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    html, body { margin:0; padding:0; height:100%; background:#000; overflow:hidden; }
+    #wrap { position:relative; width:100%; height:100%; }
+    canvas { display:block; width:100vw; height:100vh; background:#cdb27a; cursor:crosshair; }
+
+    /* HUD */
+    #hud {
+      position:absolute; top:10px; left:10px; right:10px;
+      color:#fff; font-family:system-ui, Arial, sans-serif; font-size:14px;
+      display:flex; justify-content:space-between; align-items:flex-start;
+      text-shadow:0 1px 2px rgba(0,0,0,0.9);
+      pointer-events:none;
+    }
+    #hud .panel { background:rgba(0,0,0,0.35); padding:8px 10px; border-radius:8px; }
+    #hud b { font-weight:700; }
+    #hud .small { opacity:0.85; font-size:12px; }
+
+    /* Center messages */
+    #centerMsg, #gameOver, #victory {
+      position:absolute; inset:0; display:none; place-items:center;
+      font-family:system-ui, Arial, sans-serif; color:white; text-align:center;
+      background:rgba(0,0,0,0.6);
+    }
+    .card {
+      background:rgba(0,0,0,0.8); padding:22px 26px; border-radius:12px;
+      box-shadow:0 10px 30px rgba(0,0,0,0.6); max-width:540px;
+    }
+    .title { font-size:34px; font-weight:800; letter-spacing:0.5px; margin-bottom:8px; }
+    .subtitle { font-size:15px; opacity:0.9; margin-bottom:14px; line-height:1.45; }
+    button {
+      font:inherit; font-weight:700; padding:10px 16px; border:0; border-radius:10px;
+      background:#e6c36a; color:#111; cursor:pointer;
+      box-shadow:0 4px 0 #b08d32;
+    }
+    button:active { transform:translateY(2px); box-shadow:0 2px 0 #b08d32; }
+
+    /* Damage overlay */
+    #damage {
+      position:absolute; inset:0; background:rgba(255,0,0,0.0);
+      pointer-events:none; mix-blend-mode:screen;
+      transition:background 0.12s linear;
+    }
+
+    /* Lock hint */
+    #hint {
+      position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
+      color:#fff; font-family:system-ui, Arial, sans-serif; font-size:12px;
+      opacity:0.6; pointer-events:none; text-shadow:0 1px 2px rgba(0,0,0,0.9);
+    }
+  </style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+    <div class="panel" id="hudLeft">
+      <div><b>HP:</b> <span id="hp">100</span></div>
+      <div><b>Weapon:</b> <span id="weapon">Pistol</span></div>
+      <div class="small"><b>Ammo:</b> <span id="ammo">∞</span></div>
+    </div>
+    <div class="panel" id="hudRight">
+      <div><b>Kills:</b> <span id="kills">0</span></div>
+      <div><b>Wave:</b> <span id="wave">1</span>/<span id="waveMax">4</span></div>
+      <div class="small"><b>Enemies left:</b> <span id="left">0</span></div>
+    </div>
+  </div>
+
+  <div id="centerMsg" style="display:grid;">
+    <div class="card">
+      <div class="title">Desert Arena</div>
+      <div class="subtitle">
+        WASD to move, mouse to aim, LMB to shoot. 1/2/3 to switch weapons.<br/>
+        Survive all waves in the Egyptian ruins.
+      </div>
+      <button id="startBtn">Start</button>
+    </div>
+  </div>
+
+  <div id="gameOver" style="display:grid;">
+    <div class="card">
+      <div class="title">GAME OVER</div>
+      <div class="subtitle">You were overrun. Try again.</div>
+      <button id="restartBtn">Restart</button>
+    </div>
+  </div>
+
+  <div id="victory" style="display:grid;">
+    <div class="card">
+      <div class="title">VICTORY</div>
+      <div class="subtitle">All waves cleared.</div>
+      <button id="restartBtn2">Play Again</button>
+    </div>
+  </div>
+
+  <div id="damage"></div>
+  <div id="hint">Click canvas to lock pointer for smoother aiming.</div>
+</div>
+
+<script src="./script.js"></script>
+</body>
+</html>
