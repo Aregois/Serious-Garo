@@ -57,6 +57,13 @@
       if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
       if (ac.state === "suspended") ac.resume();
     }
+  const AudioSys = (() => {
+    let ac = null;
+
+    function ensure() {
+      if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === "suspended") ac.resume();
+    }
 
     function beep({ freq = 440, dur = 0.08, type = "square", gain = 0.08, slide = 0 } = {}) {
       ensure();
@@ -130,10 +137,66 @@
     firing: false,
     locked: false
   };
+    return {
+      ensure, pistol, shotgun, minigunShot, enemyDeath, playerHit,
+      screamLoopStart, screamLoopStop
+    };
+  })();
+
+  // ---------- Input ----------
+  const input = {
+    keys: new Set(),
+    screenAimX: 0, screenAimY: 0,
+    aimAngle: 0,
+    firing: false,
+    locked: false
+  };
 
   addEventListener("keydown", (e) => input.keys.add(e.code));
   addEventListener("keyup", (e) => input.keys.delete(e.code));
 
+  function updateAimFromLockedMovement(e) {
+    if (!input.locked) return;
+    input.screenAimX += e.movementX;
+    input.screenAimY += e.movementY;
+  }
+
+  function updateAimFromCanvasMove(e) {
+    if (input.locked || e.target !== canvas) return;
+    const r = canvas.getBoundingClientRect();
+    input.screenAimX = e.clientX - r.left;
+    input.screenAimY = e.clientY - r.top;
+  }
+
+  document.addEventListener("mousemove", updateAimFromLockedMovement);
+  canvas.addEventListener("mousemove", updateAimFromCanvasMove);
+
+  canvas.addEventListener("mousedown", (e) => {
+    if (e.button === 0) input.firing = true;
+    if (document.pointerLockElement !== canvas) canvas.requestPointerLock?.();
+    AudioSys.ensure();
+  });
+  addEventListener("mouseup", (e) => { if (e.button === 0) input.firing = false; });
+
+  document.addEventListener("pointerlockchange", () => {
+    input.locked = (document.pointerLockElement === canvas);
+    const cssW = canvas.width / (window.devicePixelRatio || 1);
+    const cssH = canvas.height / (window.devicePixelRatio || 1);
+    if (input.locked) {
+      // Start from the current facing direction when locking.
+      input.screenAimX = cssW / 2;
+      input.screenAimY = cssH / 2;
+    } else {
+      // Clamp screen-space aim so it stays inside the canvas when unlocked.
+      input.screenAimX = clamp(input.screenAimX, 0, cssW);
+      input.screenAimY = clamp(input.screenAimY, 0, cssH);
+    }
+  });
+
+  addEventListener("resize", resize);
+  resize();
+
+  // ---------- World / Camera ----------
   function updateAimFromLockedMovement(e) {
     if (!input.locked) return;
     input.screenAimX += e.movementX;
@@ -227,6 +290,14 @@
       this.y = clamp(this.y, this.r, world.h - this.r);
 
       // Aim angle relative to screen center
+      const cssW = canvas.width / (window.devicePixelRatio || 1);
+      const cssH = canvas.height / (window.devicePixelRatio || 1);
+      const cx = cssW / 2;
+      const cy = cssH / 2;
+      const mx = input.locked ? input.screenAimX : clamp(input.screenAimX, 0, cssW);
+      const my = input.locked ? input.screenAimY : clamp(input.screenAimY, 0, cssH);
+      this.aimX = mx; this.aimY = my;
+      input.aimAngle = Math.atan2(my - cy, mx - cx);
       const cssW = canvas.width / (window.devicePixelRatio || 1);
       const cssH = canvas.height / (window.devicePixelRatio || 1);
       const cx = cssW / 2;
