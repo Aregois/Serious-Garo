@@ -184,6 +184,12 @@
 
   document.addEventListener("pointerlockchange", () => {
     input.locked = (document.pointerLockElement === canvas);
+    // Recenter deltas so aiming always starts from the current view direction
+    // once the pointer is locked.
+    if (input.locked) {
+      input.mouseX = 0;
+      input.mouseY = 0;
+    }
   });
 
   // ---------- World / Camera ----------
